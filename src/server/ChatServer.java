@@ -6,19 +6,21 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class ChatServer {
-    private static final int PORT = 12345; // The port where the server will listen for client connections
-    private static Set<ClientHandler> clientHandlers = ConcurrentHashMap.newKeySet(); // A thread-safe set to store active client handlers
+    private static final int PORT = 12345;
+    private static final String HISTORY_FILE = "chat_history.ser";
+    private static Set<ClientHandler> clientHandlers = ConcurrentHashMap.newKeySet();
+    private static List<Message> chatHistory = Collections.synchronizedList(new ArrayList<>());
 
     public static void main(String[] args) {
+        loadChatHistory();
+
         System.out.println("MiauChat Server is running...");
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             while (true) {
-                // Accept incoming client connections
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("A client has connected: " + clientSocket.getInetAddress());
 
-                // Create a handler for the connected client and start a new thread
                 ClientHandler clientHandler = new ClientHandler(clientSocket);
                 clientHandlers.add(clientHandler);
                 new Thread(clientHandler).start();
@@ -26,9 +28,28 @@ public class ChatServer {
         } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
         }
+
+        Runtime.getRuntime().addShutdownHook(new Thread(ChatServer::saveChatHistory));
     }
 
-    // Broadcast a message to all connected clients except the sender
+    private static void saveChatHistory() {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(HISTORY_FILE))) {
+            oos.writeObject(chatHistory);
+            System.out.println("Chat history saved.");
+        } catch (IOException e) {
+            System.err.println("Error saving chat history: " + e.getMessage());
+        }
+    }
+
+    private static void loadChatHistory() {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(HISTORY_FILE))) {
+            chatHistory = (List<Message>) ois.readObject();
+            System.out.println("Chat history loaded.");
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("No previous chat history found or error loading it.");
+        }
+    }
+
     public static void broadcast(String message, ClientHandler sender) {
         for (ClientHandler clientHandler : clientHandlers) {
             if (clientHandler != sender) {
@@ -37,63 +58,38 @@ public class ChatServer {
         }
     }
 
-    // Remove a client from the active clients set when it disconnects
+    public static void broadcastMessage(Message message) {
+        chatHistory.add(message);
+        saveChatHistory();
+        for (ClientHandler clientHandler : clientHandlers) {
+            clientHandler.sendMessage(message.toString());
+        }
+    }
+
+    public static void sendChatHistory(ClientHandler clientHandler) {
+        for (Message message : chatHistory) {
+            clientHandler.sendMessage(message.toString());
+        }
+    }
+
+    public static void broadcastUserList() {
+        String userListMessage = "USER_LIST:" + String.join(",", getUserNames());
+        for (ClientHandler clientHandler : clientHandlers) {
+            clientHandler.sendMessage(userListMessage);
+        }
+    }
+
+    private static List<String> getUserNames() {
+        List<String> userNames = new ArrayList<>();
+        for (ClientHandler clientHandler : clientHandlers) {
+            userNames.add(clientHandler.getClientName());
+        }
+        return userNames;
+    }
+
     public static void removeClient(ClientHandler clientHandler) {
         clientHandlers.remove(clientHandler);
-        System.out.println("A client has disconnected.");
-    }
-}
-
-// This class handles the interaction with a single client
-class ClientHandler implements Runnable {
-    private Socket socket; // The client's socket
-    private PrintWriter out; // Output stream to send messages to the client
-    private String clientName; // The name of the connected client
-
-    public ClientHandler(Socket socket) {
-        this.socket = socket;
-    }
-
-    @Override
-    public void run() {
-        try (
-                // Input stream to read messages from the client
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        ) {
-            out = new PrintWriter(socket.getOutputStream(), true); // Initialize the output stream
-
-            // Send a welcome message to the client
-            out.println("Welcome to MiauChat! Please enter your username:");
-
-            // Read the username from the client
-            clientName = in.readLine();
-            sendMessage("You joined the chat successfully as: " + clientName);
-            System.out.println(clientName + " has joined the chat.");
-            ChatServer.broadcast(clientName + " has joined the chat!", this);
-
-            // Listen for messages from the client
-            String message;
-            while ((message = in.readLine()) != null) {
-                System.out.println(clientName + ": " + message);
-                ChatServer.broadcast(clientName + ": " + message, this);
-            }
-        } catch (IOException e) {
-            System.err.println("Error with client: " + e.getMessage());
-        } finally {
-            // Remove the client from the active set and close the socket
-            ChatServer.removeClient(this);
-            try {
-                socket.close();
-            } catch (IOException e) {
-                System.err.println("Error closing the connection: " + e.getMessage());
-            }
-        }
-    }
-
-    // Send a message to this client
-    public void sendMessage(String message) {
-        if (out != null) {
-            out.println(message);
-        }
+        System.out.println(clientHandler.getClientName() + " has disconnected.");
+        broadcastUserList();
     }
 }

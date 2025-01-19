@@ -2,35 +2,34 @@ package client;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.*;
 import java.net.Socket;
 
 public class ChatClient {
-    private static final String SERVER_ADDRESS = "localhost"; // Address of the server
-    private static final int SERVER_PORT = 12345; // Port of the server
+    private static final String SERVER_ADDRESS = "localhost";
+    private static final int SERVER_PORT = 12345;
 
     private Socket socket;
     private PrintWriter out;
     private BufferedReader in;
 
-    // GUI Components
     private JFrame frame;
     private JTextArea chatArea;
     private JTextField messageField;
     private JButton sendButton;
+    private JList<String> userList;
+    private DefaultListModel<String> userListModel;
+    private String clientName;
+    private boolean isAuthenticated = false;
 
     public ChatClient() {
         initializeGUI();
 
         try {
-            // Connect to the server
             socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            // Start a thread to listen for messages from the server
             new Thread(this::listenForMessages).start();
         } catch (IOException e) {
             showError("Unable to connect to the server: " + e.getMessage());
@@ -38,40 +37,34 @@ public class ChatClient {
     }
 
     private void initializeGUI() {
-        // Initialize the GUI
         frame = new JFrame("MiauChat - Client");
-        frame.setSize(400, 500);
+        frame.setSize(600, 500);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         chatArea = new JTextArea();
         chatArea.setEditable(false);
         chatArea.setLineWrap(true);
         chatArea.setWrapStyleWord(true);
-        frame.add(new JScrollPane(chatArea), BorderLayout.CENTER);
+
+        JPanel chatPanel = new JPanel(new BorderLayout());
+        chatPanel.add(new JScrollPane(chatArea), BorderLayout.CENTER);
 
         JPanel inputPanel = new JPanel(new BorderLayout());
         messageField = new JTextField();
         sendButton = new JButton("Send Miau!");
-
         inputPanel.add(messageField, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
-        frame.add(inputPanel, BorderLayout.SOUTH);
 
-        // Add action listener for the send button
-        sendButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                sendMessage();
-            }
-        });
+        chatPanel.add(inputPanel, BorderLayout.SOUTH);
 
-        // Add enter key listener to send messages
-        messageField.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                sendMessage();
-            }
-        });
+        userListModel = new DefaultListModel<>();
+        userList = new JList<>(userListModel);
+        userList.setPreferredSize(new Dimension(150, 0));
+        frame.add(chatPanel, BorderLayout.CENTER);
+        frame.add(new JScrollPane(userList), BorderLayout.EAST);
+
+        sendButton.addActionListener(e -> sendMessage());
+        messageField.addActionListener(e -> sendMessage());
 
         frame.setVisible(true);
     }
@@ -79,8 +72,11 @@ public class ChatClient {
     private void sendMessage() {
         String message = messageField.getText();
         if (!message.trim().isEmpty()) {
-            out.println(message); // Send the message to the server
-            messageField.setText(""); // Clear the input field
+            if (isAuthenticated) {
+                chatArea.append("You: " + message + "\n");
+            }
+            out.println(message);
+            messageField.setText("");
         }
     }
 
@@ -88,12 +84,27 @@ public class ChatClient {
         try {
             String message;
             while ((message = in.readLine()) != null) {
-                chatArea.append(message + "\n"); // Display the message in the chat area
+                if (message.startsWith("You successfully connected as:")) {
+                    clientName = message.split(":")[1].trim();
+                    isAuthenticated = true;
+                    chatArea.append(message + "\n");
+                } else if (message.startsWith("USER_LIST:")) {
+                    updateUserList(message.substring(10).split(","));
+                } else {
+                    chatArea.append(message + "\n");
+                }
             }
         } catch (IOException e) {
             showError("Disconnected from the server.");
         } finally {
             closeConnection();
+        }
+    }
+
+    private void updateUserList(String[] users) {
+        userListModel.clear();
+        for (String user : users) {
+            userListModel.addElement(user);
         }
     }
 
