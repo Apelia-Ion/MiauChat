@@ -58,11 +58,14 @@ public class ChatServer {
         }
     }
 
-    public static void broadcastMessage(Message message) {
+    public static void broadcastMessage(Message message, ClientHandler sender) {
         chatHistory.add(message);
         saveChatHistory();
+
         for (ClientHandler clientHandler : clientHandlers) {
-            clientHandler.sendMessage(message.toString());
+            if (clientHandler != sender) {
+                clientHandler.sendMessage(message.toString());
+            }
         }
     }
 

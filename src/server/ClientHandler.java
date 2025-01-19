@@ -6,6 +6,7 @@ import java.net.*;
 public class ClientHandler implements Runnable {
     private Socket socket;
     private PrintWriter out;
+    private BufferedReader in;
     private String clientName;
 
     public ClientHandler(Socket socket) {
@@ -23,18 +24,18 @@ public class ClientHandler implements Runnable {
             out.println("Welcome to MiauChat! Please enter your username:");
             clientName = in.readLine();
 
-            // Trimitem mesajul de conectare doar acestui client
-            out.println("You successfully connected as: " + clientName);
+            // Confirmare conectare pentru client
+            out.println("Connected as: " + clientName);
 
             System.out.println(clientName + " has joined the chat.");
-            ChatServer.sendChatHistory(this); // Trimitem istoricul conversațiilor
             ChatServer.broadcast(clientName + " has joined the chat!", this);
-            ChatServer.broadcastUserList(); // Actualizăm lista de utilizatori
+            ChatServer.broadcastUserList();
+            ChatServer.sendChatHistory(this);
 
             String message;
             while ((message = in.readLine()) != null) {
                 Message chatMessage = new Message(clientName, message);
-                ChatServer.broadcastMessage(chatMessage);
+                ChatServer.broadcastMessage(chatMessage, this);
             }
         } catch (IOException e) {
             System.err.println("Error with client: " + e.getMessage());

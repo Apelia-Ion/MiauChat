@@ -4,6 +4,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.*;
 import java.net.Socket;
+import utils.SoundUtils;
+
 
 public class ChatClient {
     private static final String SERVER_ADDRESS = "localhost";
@@ -20,7 +22,6 @@ public class ChatClient {
     private JList<String> userList;
     private DefaultListModel<String> userListModel;
     private String clientName;
-    private boolean isAuthenticated = false;
 
     public ChatClient() {
         initializeGUI();
@@ -51,7 +52,7 @@ public class ChatClient {
 
         JPanel inputPanel = new JPanel(new BorderLayout());
         messageField = new JTextField();
-        sendButton = new JButton("Send Miau!");
+        sendButton = new JButton("Send");
         inputPanel.add(messageField, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
 
@@ -70,28 +71,39 @@ public class ChatClient {
     }
 
     private void sendMessage() {
-        String message = messageField.getText();
-        if (!message.trim().isEmpty()) {
-            if (isAuthenticated) {
+        String message = messageField.getText().trim();
+        if (!message.isEmpty()) {
+            // Trimitem mesajul serverului
+            out.println(message);
+
+            // Afișăm "You: ..." doar pentru mesajele trimise ulterior conectării
+            if (clientName != null) {
                 chatArea.append("You: " + message + "\n");
             }
-            out.println(message);
-            messageField.setText("");
+
+            messageField.setText(""); // Golim câmpul de text
         }
     }
+
 
     private void listenForMessages() {
         try {
             String message;
             while ((message = in.readLine()) != null) {
-                if (message.startsWith("You successfully connected as:")) {
-                    clientName = message.split(":")[1].trim();
-                    isAuthenticated = true;
+                // Procesăm mesajul de conectare
+                if (message.startsWith("Connected as:")) {
+                    clientName = message.split(":")[1].trim(); // Salvăm numele utilizatorului
                     chatArea.append(message + "\n");
                 } else if (message.startsWith("USER_LIST:")) {
                     updateUserList(message.substring(10).split(","));
                 } else {
+                    // Afișăm restul mesajelor
                     chatArea.append(message + "\n");
+
+                    // Redăm sunetul "meow" pentru fiecare mesaj primit
+                    if (!message.startsWith("You:")) {
+                        SoundUtils.playSound("resources/meow.wav");
+                    }
                 }
             }
         } catch (IOException e) {
@@ -100,6 +112,7 @@ public class ChatClient {
             closeConnection();
         }
     }
+
 
     private void updateUserList(String[] users) {
         userListModel.clear();
