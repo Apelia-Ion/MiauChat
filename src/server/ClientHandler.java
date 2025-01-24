@@ -4,7 +4,7 @@ import java.io.*;
 import java.net.*;
 
 public class ClientHandler implements Runnable {
-    private Socket socket;
+    private final Socket socket;
     private PrintWriter out;
     private BufferedReader in;
     private String clientName;
@@ -15,9 +15,8 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run() {
-        try (
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))
-        ) {
+        try {
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
 
             // Solicităm username-ul
@@ -45,8 +44,10 @@ public class ClientHandler implements Runnable {
     }
 
     public void sendMessage(String message) {
-        if (out != null) {
-            out.println(message);
+        synchronized (this) { // Sincronizare pentru fluxul de ieșire
+            if (out != null) {
+                out.println(message);
+            }
         }
     }
 
