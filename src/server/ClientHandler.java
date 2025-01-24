@@ -33,8 +33,12 @@ public class ClientHandler implements Runnable {
 
             String message;
             while ((message = in.readLine()) != null) {
-                Message chatMessage = new Message(clientName, message);
-                ChatServer.broadcastMessage(chatMessage, this);
+                if (message.equals("COMMAND:HISS")) {
+                    ChatServer.broadcastCommand("COMMAND:HISS:" + clientName);// Send hiss to all
+                } else {
+                    Message chatMessage = new Message(clientName, message);
+                    ChatServer.broadcastMessage(chatMessage, this);
+                }
             }
         } catch (IOException e) {
             System.err.println("Error with client: " + e.getMessage());
@@ -44,7 +48,7 @@ public class ClientHandler implements Runnable {
     }
 
     public void sendMessage(String message) {
-        synchronized (this) { // Sincronizare pentru fluxul de ieșire
+        synchronized (this) {
             if (out != null) {
                 out.println(message);
             }

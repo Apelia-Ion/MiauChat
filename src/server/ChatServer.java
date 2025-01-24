@@ -11,6 +11,9 @@ public class ChatServer {
     private static final Set<ClientHandler> clientHandlers = ConcurrentHashMap.newKeySet();
     private static final List<Message> chatHistory = Collections.synchronizedList(new ArrayList<>());
 
+    // Mutex to ensure one hiss command at a time
+    private static final Object hissLock = new Object();
+
     public static void main(String[] args) {
         loadChatHistory();
 
@@ -58,6 +61,16 @@ public class ChatServer {
             for (ClientHandler clientHandler : clientHandlers) {
                 if (clientHandler != sender) {
                     clientHandler.sendMessage(message);
+                }
+            }
+        }
+    }
+
+    public static void broadcastCommand(String command) {
+        synchronized (hissLock) { // Ensure one hiss at a time
+            synchronized (clientHandlers) {
+                for (ClientHandler clientHandler : clientHandlers) {
+                    clientHandler.sendMessage(command);
                 }
             }
         }

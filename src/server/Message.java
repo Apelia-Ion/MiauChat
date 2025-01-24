@@ -2,6 +2,7 @@ package server;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class Message implements Serializable {
     private String sender;
@@ -28,6 +29,7 @@ public class Message implements Serializable {
 
     @Override
     public String toString() {
-        return "[" + timestamp + "] " + sender + ": " + text;
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+        return "[" + timestamp.format(formatter) + "] " + sender + ": " + text;
     }
 }

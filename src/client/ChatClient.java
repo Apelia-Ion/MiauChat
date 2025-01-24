@@ -5,7 +5,7 @@ import java.awt.*;
 import java.io.*;
 import java.net.Socket;
 import utils.SoundUtils;
-
+import utils.BackgroundPanel;
 
 public class ChatClient {
     private static final String SERVER_ADDRESS = "localhost";
@@ -19,6 +19,7 @@ public class ChatClient {
     private JTextArea chatArea;
     private JTextField messageField;
     private JButton sendButton;
+    private JButton hissButton; // New button for "Hiss"
     private JList<String> userList;
     private DefaultListModel<String> userListModel;
     private String clientName;
@@ -42,30 +43,38 @@ public class ChatClient {
         frame.setSize(600, 500);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
+        // Creează panoul de fundal
+        BackgroundPanel backgroundPanel = new BackgroundPanel("bg.jpg");
+        backgroundPanel.setLayout(new BorderLayout()); // Pentru a adăuga alte componente
+
         chatArea = new JTextArea();
         chatArea.setEditable(false);
         chatArea.setLineWrap(true);
         chatArea.setWrapStyleWord(true);
 
-        JPanel chatPanel = new JPanel(new BorderLayout());
-        chatPanel.add(new JScrollPane(chatArea), BorderLayout.CENTER);
-
+        JScrollPane chatScrollPane = new JScrollPane(chatArea);
         JPanel inputPanel = new JPanel(new BorderLayout());
         messageField = new JTextField();
         sendButton = new JButton("Send");
+        hissButton = new JButton("Hiss");
+
         inputPanel.add(messageField, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
+        inputPanel.add(hissButton, BorderLayout.WEST);
 
-        chatPanel.add(inputPanel, BorderLayout.SOUTH);
+        backgroundPanel.add(chatScrollPane, BorderLayout.CENTER);
+        backgroundPanel.add(inputPanel, BorderLayout.SOUTH);
 
         userListModel = new DefaultListModel<>();
         userList = new JList<>(userListModel);
         userList.setPreferredSize(new Dimension(150, 0));
-        frame.add(chatPanel, BorderLayout.CENTER);
+
+        frame.add(backgroundPanel, BorderLayout.CENTER);
         frame.add(new JScrollPane(userList), BorderLayout.EAST);
 
         sendButton.addActionListener(e -> sendMessage());
         messageField.addActionListener(e -> sendMessage());
+        hissButton.addActionListener(e -> sendHiss());
 
         frame.setVisible(true);
     }
@@ -73,34 +82,33 @@ public class ChatClient {
     private void sendMessage() {
         String message = messageField.getText().trim();
         if (!message.isEmpty()) {
-            // Trimitem mesajul serverului
             out.println(message);
-
-            // Afișăm "You: ..." doar pentru mesajele trimise ulterior conectării
             if (clientName != null) {
                 chatArea.append("You: " + message + "\n");
             }
-
-            messageField.setText(""); // Golim câmpul de text
+            messageField.setText("");
         }
     }
 
+    private void sendHiss() {
+        out.println("COMMAND:HISS"); // Send hiss command to server
+    }
 
     private void listenForMessages() {
         try {
             String message;
             while ((message = in.readLine()) != null) {
-                // Procesăm mesajul de conectare
                 if (message.startsWith("Connected as:")) {
-                    clientName = message.split(":")[1].trim(); // Salvăm numele utilizatorului
+                    clientName = message.split(":")[1].trim();
                     chatArea.append(message + "\n");
                 } else if (message.startsWith("USER_LIST:")) {
                     updateUserList(message.substring(10).split(","));
+                }else if (message.startsWith("COMMAND:HISS:")) {
+                    String sender = message.split(":")[2]; // Extrage numele expeditorului
+                    SoundUtils.playSound("resources/hiss.wav");
+                    chatArea.append("*HISS* from " + sender + "\n"); // Afișează cine a trimis
                 } else {
-                    // Afișăm restul mesajelor
                     chatArea.append(message + "\n");
-
-                    // Redăm sunetul "meow" pentru fiecare mesaj primit
                     if (!message.startsWith("You:")) {
                         SoundUtils.playSound("resources/meow.wav");
                     }
@@ -112,7 +120,6 @@ public class ChatClient {
             closeConnection();
         }
     }
-
 
     private void updateUserList(String[] users) {
         userListModel.clear();
